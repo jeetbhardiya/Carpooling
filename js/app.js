@@ -164,8 +164,19 @@ const App = {
 
             localStorage.setItem(CONFIG.STORAGE_KEYS.USER_EMAIL, email);
             this.currentUser = user;
-            this.showRoleScreen();
-            this.showToast('Welcome!', 'success');
+
+            // Normalize role and check if user has existing role
+            const role = (user.role || '').toString().trim().toLowerCase();
+
+            if (role === 'driver' || role === 'passenger' || role === 'admin') {
+                this.currentRole = role;
+                this.currentUser.role = role;
+                this.showToast('Welcome back!', 'success');
+                await this.goToRoleScreen(role);
+            } else {
+                this.showToast('Welcome!', 'success');
+                this.showRoleScreen();
+            }
         } catch (error) {
             this.showToast('Login failed: ' + error.message, 'error');
         }
