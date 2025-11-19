@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Office Trip Carpooling</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="login-screen" class="screen">
+            <div class="login-container">
+                <div class="login-logo">🚗</div>
+                <h1>Office Trip</h1>
+                <h2>Coordinate your ride with ease</h2>
+                <div class="form-group">
+                    <label for="email-input">Company Email</label>
+                    <input type="email" id="email-input" placeholder="your.name@company.com" autocomplete="email">
+                </div>
+                <button id="login-btn" class="btn btn-primary btn-full">Get Started</button>
+                <p class="form-hint" style="margin-top: 1rem; text-align: center;">
+                    Enter your company email to continue
+                </p>
+            </div>
+        </div>
+
+        <!-- Role Selection Screen -->
+        <div id="role-screen" class="screen hidden">
+            <div class="header">
+                <h1>Welcome</h1>
+                <button id="logout-btn" class="btn btn-ghost btn-small">Logout</button>
+            </div>
+            <div class="role-header">
+                <h1>How are you traveling?</h1>
+                <p>Select your role for this trip</p>
+            </div>
+            <div class="role-container">
+                <div class="role-card" data-role="driver">
+                    <div class="role-card-icon">🚙</div>
+                    <div class="role-card-content">
+                        <h3>I'm Driving</h3>
+                        <p>I'll bring my vehicle and can offer seats</p>
+                    </div>
+                    <span class="role-card-arrow">→</span>
+                </div>
+                <div class="role-card" data-role="passenger">
+                    <div class="role-card-icon">🙋</div>
+                    <div class="role-card-content">
+                        <h3>I Need a Ride</h3>
+                        <p>I'm looking for available seats</p>
+                    </div>
+                    <span class="role-card-arrow">→</span>
+                </div>
+                <div class="role-card hidden" data-role="admin" id="admin-role-card">
+                    <div class="role-card-icon">⚙️</div>
+                    <div class="role-card-content">
+                        <h3>Admin Panel</h3>
+                        <p>Manage users and assignments</p>
+                    </div>
+                    <span class="role-card-arrow">→</span>
+                </div>
+            </div>
+            <div class="role-footer">
+                <p class="form-hint">You can change your role anytime</p>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div id="dashboard-screen" class="screen hidden">
+            <div class="header">
+                <h1>Available Rides</h1>
+                <div class="header-actions">
+                    <button id="refresh-btn" class="btn btn-ghost btn-icon" title="Refresh">🔄</button>
+                    <button id="profile-btn" class="btn btn-ghost btn-icon" title="My Profile">👤</button>
+                    <button id="back-to-roles-btn" class="btn btn-ghost btn-icon" title="Switch Role">🔀</button>
+                    <button class="btn btn-ghost btn-icon logout-btn" title="Logout">🚪</button>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" data-tab="vehicles">All Vehicles</button>
+                <button class="tab" data-tab="my-requests">My Requests<span id="requests-badge" class="badge-count hidden">0</span></button>
+            </div>
+
+            <div id="vehicles-tab" class="tab-content">
+                <div id="vehicles-list" class="card-list"></div>
+            </div>
+            <div id="my-requests-tab" class="tab-content hidden">
+                <div id="requests-list" class="card-list"></div>
+            </div>
+        </div>
+
+        <!-- Driver Panel -->
+        <div id="driver-panel" class="screen hidden">
+            <div class="header">
+                <h1>Driver Dashboard</h1>
+                <div class="header-actions">
+                    <button id="driver-back-btn" class="btn btn-ghost btn-small">← Back</button>
+                    <button class="btn btn-ghost btn-icon logout-btn" title="Logout">🚪</button>
+                </div>
+            </div>
+
+            <div class="profile-header">
+                <div class="profile-avatar" id="driver-avatar">🚙</div>
+                <div class="profile-name" id="driver-name">Driver</div>
+                <div class="profile-email" id="driver-email"></div>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" data-tab="vehicle-info">My Vehicle</button>
+                <button class="tab" data-tab="seat-requests">Requests<span id="driver-requests-badge" class="badge-count hidden">0</span></button>
+            </div>
+
+            <div id="vehicle-info-tab" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><span class="card-header-icon">🚗</span> Vehicle Details</h3>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="driver-name-input">Your Name</label>
+                        <input type="text" id="driver-name-input" placeholder="Enter your name">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="driver-phone">Phone Number</label>
+                        <input type="tel" id="driver-phone" placeholder="Enter phone number">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="vehicle-type">Vehicle Type</label>
+                        <select id="vehicle-type">
+                            <option value="">Select type</option>
+                            <option value="Sedan">Sedan (4 seats)</option>
+                            <option value="SUV">SUV (5-7 seats)</option>
+                            <option value="Hatchback">Hatchback (4 seats)</option>
+                            <option value="Van">Van (7+ seats)</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="total-seats">Total Passenger Seats</label>
+                        <input type="number" id="total-seats" min="1" max="20" value="4">
+                        <p class="form-hint">Excluding the driver seat</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="family-members">Family Members Coming</label>
+                        <input type="number" id="family-members" min="0" max="20" value="0">
+                        <p class="form-hint">These seats will be reserved</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="driver-status">Availability Status</label>
+                        <select id="driver-status">
+                            <option value="open">✅ Open for Passengers</option>
+                            <option value="full">🚫 Seats Full</option>
+                            <option value="not-bringing">❌ Not Bringing Vehicle</option>
+                        </select>
+                    </div>
+
+                    <div class="info-box info-box-large">
+                        <span class="info-box-value" id="available-seats">4</span>
+                        <span class="info-box-label">Available Seats for Others</span>
+                    </div>
+
+                    <button id="save-vehicle-btn" class="btn btn-primary btn-full">Save & Continue to Dashboard</button>
+                </div>
+            </div>
+
+            <div id="seat-requests-tab" class="tab-content hidden">
+                <div id="driver-requests-list" class="card-list"></div>
+            </div>
+        </div>
+
+        <!-- Passenger Panel -->
+        <div id="passenger-panel" class="screen hidden">
+            <div class="header">
+                <h1>Passenger Setup</h1>
+                <div class="header-actions">
+                    <button id="passenger-back-btn" class="btn btn-ghost btn-small">← Back</button>
+                    <button class="btn btn-ghost btn-icon logout-btn" title="Logout">🚪</button>
+                </div>
+            </div>
+
+            <div class="profile-header">
+                <div class="profile-avatar">🙋</div>
+                <div class="profile-name" id="passenger-name">Passenger</div>
+                <div class="profile-email" id="passenger-email"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3><span class="card-header-icon">🎫</span> Your Details</h3>
+                </div>
+
+                <div class="form-group">
+                    <label for="passenger-name-input">Your Name</label>
+                    <input type="text" id="passenger-name-input" placeholder="Enter your name">
+                </div>
+
+                <div class="form-group">
+                    <label for="passenger-phone">Phone Number</label>
+                    <input type="tel" id="passenger-phone" placeholder="Enter phone number">
+                </div>
+
+                <div class="form-group">
+                    <label for="seats-needed">Total Seats Needed</label>
+                    <input type="number" id="seats-needed" min="1" max="10" value="1">
+                    <p class="form-hint">Including yourself and any family members</p>
+                </div>
+
+                <button id="save-passenger-btn" class="btn btn-primary btn-full">Save & Browse Vehicles</button>
+            </div>
+
+            <div class="info-box" style="margin-top: 1rem;">
+                <p style="font-size: 0.875rem; color: var(--secondary);">
+                    💡 <strong>Tip:</strong> After saving, you'll see all available vehicles and can request seats from any driver.
+                </p>
+            </div>
+        </div>
+
+        <!-- Admin Panel -->
+        <div id="admin-panel" class="screen hidden">
+            <div class="header">
+                <h1>Admin Dashboard</h1>
+                <div class="header-actions">
+                    <button id="admin-back-btn" class="btn btn-ghost btn-small">← Back</button>
+                    <button class="btn btn-ghost btn-icon logout-btn" title="Logout">🚪</button>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" data-tab="summary">Summary</button>
+                <button class="tab" data-tab="users">Users</button>
+                <button class="tab" data-tab="vehicles-admin">Vehicles</button>
+                <button class="tab" data-tab="assignments">Assignments</button>
+            </div>
+
+            <div id="summary-tab" class="tab-content">
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <div class="summary-icon">👥</div>
+                        <span class="summary-value" id="total-people">0</span>
+                        <span class="summary-label">Total People</span>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-icon">🚗</div>
+                        <span class="summary-value" id="total-cars">0</span>
+                        <span class="summary-label">Vehicles</span>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-icon">💺</div>
+                        <span class="summary-value" id="total-seats-summary">0</span>
+                        <span class="summary-label">Total Seats</span>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-icon">⚠️</div>
+                        <span class="summary-value" id="unassigned-passengers">0</span>
+                        <span class="summary-label">Unassigned</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Export Data</h3>
+                    </div>
+                    <div class="export-buttons">
+                        <button id="export-csv-btn" class="btn btn-secondary">📊 Export CSV</button>
+                        <button id="export-pdf-btn" class="btn btn-secondary">📄 Print PDF</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="users-tab" class="tab-content hidden">
+                <div id="admin-users-list" class="card-list"></div>
+            </div>
+
+            <div id="vehicles-admin-tab" class="tab-content hidden">
+                <div id="admin-vehicles-list" class="card-list"></div>
+            </div>
+
+            <div id="assignments-tab" class="tab-content hidden">
+                <div id="admin-assignments-list" class="card-list"></div>
+            </div>
+        </div>
+
+        <!-- Request Modal -->
+        <div id="request-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-icon">🎫</div>
+                    <h3>Request Seats</h3>
+                </div>
+                <p><strong>Driver:</strong> <span id="modal-driver-name"></span></p>
+                <p><strong>Available:</strong> <span id="modal-available-seats"></span> seats</p>
+                <div class="form-group">
+                    <label for="request-seats">Number of seats to request</label>
+                    <input type="number" id="request-seats" min="1" value="1">
+                </div>
+                <div class="modal-actions">
+                    <button id="cancel-request-btn" class="btn btn-secondary">Cancel</button>
+                    <button id="submit-request-btn" class="btn btn-primary">Send Request</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit User Modal -->
+        <div id="edit-user-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-icon">👤</div>
+                    <h3>Edit User</h3>
+                </div>
+                <div class="form-group">
+                    <label for="edit-user-email">Email</label>
+                    <input type="email" id="edit-user-email" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="edit-user-name">Name</label>
+                    <input type="text" id="edit-user-name">
+                </div>
+                <div class="form-group">
+                    <label for="edit-user-role">Role</label>
+                    <select id="edit-user-role">
+                        <option value="">No role selected</option>
+                        <option value="driver">Driver</option>
+                        <option value="passenger">Passenger</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="edit-user-admin"> Make Admin
+                    </label>
+                </div>
+                <div class="modal-actions">
+                    <button id="cancel-edit-user-btn" class="btn btn-secondary">Cancel</button>
+                    <button id="delete-user-btn" class="btn btn-danger">Delete</button>
+                    <button id="save-edit-user-btn" class="btn btn-primary">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact Modal -->
+        <div id="contact-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-icon">📞</div>
+                    <h3>Contact Driver</h3>
+                </div>
+                <div id="contact-details">
+                    <p><strong>Name:</strong> <span id="contact-name"></span></p>
+                    <p><strong>Email:</strong> <span id="contact-email"></span></p>
+                    <p><strong>Phone:</strong> <span id="contact-phone"></span></p>
+                </div>
+                <div class="modal-actions">
+                    <button id="close-contact-btn" class="btn btn-secondary">Close</button>
+                    <a id="call-driver-btn" href="#" class="btn btn-primary">📞 Call</a>
+                    <a id="email-driver-btn" href="#" class="btn btn-primary">✉️ Email</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading" class="loading-overlay hidden">
+            <div class="spinner"></div>
+            <p class="loading-text">Loading...</p>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
