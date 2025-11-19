@@ -23,10 +23,15 @@ const App = {
                 const user = await API.users.get(email);
                 if (user) {
                     this.currentUser = user;
+                    // Normalize role value (trim whitespace, lowercase)
+                    const role = (user.role || '').toString().trim().toLowerCase();
+                    console.log('User loaded:', user, 'Role:', role); // Debug log
+
                     // If user has a saved role, go to appropriate screen
-                    if (user.role === 'driver' || user.role === 'passenger' || user.role === 'admin') {
-                        this.currentRole = user.role;
-                        await this.goToRoleScreen(user.role);
+                    if (role === 'driver' || role === 'passenger' || role === 'admin') {
+                        this.currentRole = role;
+                        this.currentUser.role = role; // Update with normalized value
+                        await this.goToRoleScreen(role);
                     } else {
                         this.showRoleScreen();
                     }
