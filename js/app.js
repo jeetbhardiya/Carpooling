@@ -559,6 +559,89 @@ const App = {
 
         this.renderVehicles();
         this.renderMyRequests();
+
+        // Show My Passengers tab for drivers
+        if (this.currentRole === 'driver') {
+            document.getElementById('dashboard-passengers-tab-btn').classList.remove('hidden');
+            this.renderDashboardPassengers();
+        } else {
+            document.getElementById('dashboard-passengers-tab-btn').classList.add('hidden');
+        }
+    },
+
+    // Render approved passengers in dashboard for drivers
+    renderDashboardPassengers() {
+        const container = document.getElementById('dashboard-passengers-list');
+        const myPassengers = this.allRequests.filter(
+            r => r.driverEmail === this.currentUser.email &&
+            (r.status === 'approved' || r.status === 'confirmed')
+        );
+
+        // Update badge
+        const badge = document.getElementById('dashboard-passengers-badge');
+        if (myPassengers.length > 0) {
+            badge.textContent = myPassengers.length;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+
+        if (!myPassengers || myPassengers.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">👥</div>
+                    <h3>No passengers yet</h3>
+                    <p>Approved passengers will appear here</p>
+                </div>
+            `;
+            return;
+        }
+
+        const totalSeats = myPassengers.reduce((sum, r) => sum + (parseInt(r.seatsRequested) || 0), 0);
+
+        container.innerHTML = `
+            <div class="info-box" style="margin-bottom: 1rem;">
+                <p style="text-align: center; margin: 0;">
+                    <strong>${myPassengers.length}</strong> passenger(s) • <strong>${totalSeats}</strong> seat(s) booked
+                </p>
+            </div>
+        ` + myPassengers.map(request => {
+            const passenger = this.allUsers.find(u => u.email === request.passengerEmail) || {};
+            return `
+                <div class="request-card">
+                    <div class="request-card-header">
+                        <h4>${passenger.name || request.passengerEmail}</h4>
+                        <span class="request-status status-${request.status}">${request.status}</span>
+                    </div>
+                    <div class="request-card-details">
+                        <p>🎫 Seats: <strong>${request.seatsRequested}</strong></p>
+                        <p>✉️ ${request.passengerEmail}</p>
+                        ${passenger.phone ? `<p>📞 ${passenger.phone}</p>` : ''}
+                    </div>
+                    <div class="request-card-actions">
+                        <button class="btn btn-secondary btn-small" onclick="App.showContactModal('${request.passengerEmail}')">📞 Contact</button>
+                        <button class="btn btn-danger btn-small" onclick="App.removePassengerFromDashboard('${request.id}', '${(passenger.name || request.passengerEmail).replace(/'/g, "\\'")}')">Remove</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+
+    // Remove passenger from dashboard view
+    async removePassengerFromDashboard(requestId, passengerName) {
+        if (!confirm(`Remove ${passengerName} from your car? They will need to request again.`)) return;
+
+        this.showLoading();
+
+        try {
+            await API.requests.delete(requestId);
+            await this.loadDashboardData();
+            this.showToast('Passenger removed', 'success');
+        } catch (error) {
+            this.showToast('Error: ' + error.message, 'error');
+        }
+
+        this.hideLoading();
     },
 
     // Render vehicles list
