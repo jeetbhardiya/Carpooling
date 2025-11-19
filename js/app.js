@@ -46,14 +46,35 @@ const App = {
         }
     },
 
-    // Navigate to role-specific screen
+    // Navigate to role-specific screen based on user state
     async goToRoleScreen(role) {
         if (role === 'driver') {
-            await this.loadDriverData();
-            this.showScreen('driver-panel');
+            // Check if driver has vehicle registered
+            const vehicle = await API.vehicles.get(this.currentUser.email);
+            if (vehicle && vehicle.vehicleType) {
+                // Existing driver - go to dashboard
+                await this.showDashboard();
+            } else {
+                // New driver - go to setup
+                await this.loadDriverData();
+                this.showScreen('driver-panel');
+            }
         } else if (role === 'passenger') {
-            await this.loadPassengerData();
-            this.showScreen('passenger-panel');
+            // Check passenger's request status
+            const requests = await API.requests.getByPassenger(this.currentUser.email);
+            const activeRequest = requests.find(r => r.status === 'pending' || r.status === 'approved' || r.status === 'confirmed');
+
+            if (activeRequest) {
+                // Has active request - go to dashboard to see status
+                await this.showDashboard();
+            } else if (this.currentUser.name) {
+                // Existing passenger with no request - go to browse vehicles
+                await this.showDashboard();
+            } else {
+                // New passenger - go to setup
+                await this.loadPassengerData();
+                this.showScreen('passenger-panel');
+            }
         } else if (role === 'admin') {
             await this.loadAdminData();
             this.showScreen('admin-panel');
@@ -230,9 +251,95 @@ const App = {
             }
             this.updateAvailableSeats();
             await this.loadDriverRequests();
+            await this.loadDriverPassengers();
         } catch (error) {
             console.error('Error loading driver data:', error);
         }
+    },
+
+    // Load approved passengers for driver
+    async loadDriverPassengers() {
+        try {
+            const requests = await API.requests.getByDriver(this.currentUser.email);
+            const users = await API.users.getAll();
+            const approvedRequests = requests.filter(r => r.status === 'approved' || r.status === 'confirmed');
+
+            this.renderDriverPassengers(approvedRequests, users);
+
+            // Update badge
+            const badge = document.getElementById('driver-passengers-badge');
+            if (approvedRequests.length > 0) {
+                badge.textContent = approvedRequests.length;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        } catch (error) {
+            console.error('Error loading driver passengers:', error);
+        }
+    },
+
+    // Render approved passengers list
+    renderDriverPassengers(requests, users) {
+        const container = document.getElementById('driver-passengers-list');
+
+        if (!requests || requests.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">👥</div>
+                    <h3>No passengers yet</h3>
+                    <p>Approved passengers will appear here</p>
+                </div>
+            `;
+            return;
+        }
+
+        const totalSeats = requests.reduce((sum, r) => sum + (parseInt(r.seatsRequested) || 0), 0);
+
+        container.innerHTML = `
+            <div class="info-box" style="margin-bottom: 1rem;">
+                <p style="text-align: center; margin: 0;">
+                    <strong>${requests.length}</strong> passenger(s) • <strong>${totalSeats}</strong> seat(s) booked
+                </p>
+            </div>
+        ` + requests.map(request => {
+            const passenger = users.find(u => u.email === request.passengerEmail) || {};
+            return `
+                <div class="request-card">
+                    <div class="request-card-header">
+                        <h4>${passenger.name || request.passengerEmail}</h4>
+                        <span class="request-status status-${request.status}">${request.status}</span>
+                    </div>
+                    <div class="request-card-details">
+                        <p>🎫 Seats: <strong>${request.seatsRequested}</strong></p>
+                        <p>✉️ ${request.passengerEmail}</p>
+                        ${passenger.phone ? `<p>📞 ${passenger.phone}</p>` : ''}
+                    </div>
+                    <div class="request-card-actions">
+                        <button class="btn btn-secondary btn-small" onclick="App.showContactModal('${request.passengerEmail}')">📞 Contact</button>
+                        <button class="btn btn-danger btn-small" onclick="App.removePassenger('${request.id}', '${passenger.name || request.passengerEmail}')">Remove</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+
+    // Remove a passenger from the car
+    async removePassenger(requestId, passengerName) {
+        if (!confirm(`Remove ${passengerName} from your car? They will need to request again.`)) return;
+
+        this.showLoading();
+
+        try {
+            await API.requests.delete(requestId);
+            await this.loadDriverPassengers();
+            await this.loadDriverRequests();
+            this.showToast('Passenger removed', 'success');
+        } catch (error) {
+            this.showToast('Error: ' + error.message, 'error');
+        }
+
+        this.hideLoading();
     },
 
     // Load passenger data
@@ -544,6 +651,7 @@ const App = {
 
         container.innerHTML = myRequests.map(request => {
             const driver = this.allUsers.find(u => u.email === request.driverEmail) || {};
+            const vehicle = this.allVehicles.find(v => v.driverEmail === request.driverEmail) || {};
             return `
                 <div class="request-card">
                     <div class="request-card-header">
@@ -552,6 +660,8 @@ const App = {
                     </div>
                     <div class="request-card-details">
                         <p>🎫 Seats requested: <strong>${request.seatsRequested}</strong></p>
+                        ${vehicle.vehicleType ? `<p>🚗 Vehicle: <strong>${vehicle.vehicleType}</strong></p>` : ''}
+                        ${request.status === 'approved' ? `<p>✅ You're confirmed for this ride!</p>` : ''}
                     </div>
                     ${request.status === 'pending' ? `
                         <div class="request-card-actions">
@@ -560,16 +670,43 @@ const App = {
                             </button>
                         </div>
                     ` : ''}
-                    ${request.status === 'approved' ? `
+                    ${request.status === 'approved' || request.status === 'confirmed' ? `
                         <div class="request-card-actions">
                             <button class="btn btn-secondary btn-small" onclick="App.showContactModal('${request.driverEmail}')">
                                 📞 Contact Driver
+                            </button>
+                            <button class="btn btn-danger btn-small" onclick="App.leaveRide('${request.id}', '${(driver.name || request.driverEmail).replace(/'/g, "\\'")}')">
+                                Leave Ride
+                            </button>
+                        </div>
+                    ` : ''}
+                    ${request.status === 'rejected' ? `
+                        <div class="request-card-actions">
+                            <button class="btn btn-secondary btn-small" onclick="App.cancelRequest('${request.id}')">
+                                Remove
                             </button>
                         </div>
                     ` : ''}
                 </div>
             `;
         }).join('');
+    },
+
+    // Leave a ride (passenger cancels approved request)
+    async leaveRide(requestId, driverName) {
+        if (!confirm(`Leave ${driverName}'s ride? You can request another ride after.`)) return;
+
+        this.showLoading();
+
+        try {
+            await API.requests.delete(requestId);
+            await this.loadDashboardData();
+            this.showToast('You left the ride. You can now request another.', 'success');
+        } catch (error) {
+            this.showToast('Error: ' + error.message, 'error');
+        }
+
+        this.hideLoading();
     },
 
     // Show contact modal

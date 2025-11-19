@@ -110,6 +110,7 @@
 
             <div class="tabs">
                 <button class="tab active" data-tab="vehicle-info">My Vehicle</button>
+                <button class="tab" data-tab="my-passengers">My Passengers<span id="driver-passengers-badge" class="badge-count hidden">0</span></button>
                 <button class="tab" data-tab="seat-requests">Requests<span id="driver-requests-badge" class="badge-count hidden">0</span></button>
             </div>
 
@@ -169,6 +170,10 @@
 
                     <button id="save-vehicle-btn" class="btn btn-primary btn-full">Save & Continue to Dashboard</button>
                 </div>
+            </div>
+
+            <div id="my-passengers-tab" class="tab-content hidden">
+                <div id="driver-passengers-list" class="card-list"></div>
             </div>
 
             <div id="seat-requests-tab" class="tab-content hidden">
