@@ -275,7 +275,8 @@ const App = {
 
         if (activeRide) {
             const driver = this.allUsers.find(u => u.email === activeRide.driverEmail) || {};
-            alert(`⚠️ Cannot change role. You have an active ${activeRide.status} request with ${driver.name || activeRide.driverEmail}.\n\nPlease cancel or leave the ride first.`);
+            const statusText = activeRide.status === 'pending' ? 'pending request' : 'confirmed ride';
+            alert(`⚠️ Cannot change role. You have a ${statusText} with ${driver.name || activeRide.driverEmail}.\n\nPlease cancel/leave the ride first and inform the driver about your decision.`);
             return false;
         }
 
@@ -892,14 +893,14 @@ const App = {
 
     // Leave a ride (passenger cancels approved request)
     async leaveRide(requestId, driverName) {
-        if (!confirm(`Leave ${driverName}'s ride? You can request another ride after.`)) return;
+        if (!confirm(`⚠️ IMPORTANT: Please contact ${driverName} first to inform them.\n\nAre you sure you want to leave ${driverName}'s ride? You can request another ride after.`)) return;
 
         this.showLoading();
 
         try {
             await API.requests.delete(requestId);
             await this.loadDashboardData();
-            this.showToast('You left the ride. You can now request another.', 'success');
+            this.showToast('You left the ride. Please contact the driver to inform them.', 'success');
         } catch (error) {
             this.showToast('Error: ' + error.message, 'error');
         }
@@ -962,14 +963,21 @@ const App = {
 
     // Cancel request
     async cancelRequest(requestId) {
-        if (!confirm('Cancel this request?')) return;
+        // Get request details to show driver name
+        const request = this.allRequests.find(r => r.id === requestId);
+        if (!request) return;
+
+        const driver = this.allUsers.find(u => u.email === request.driverEmail) || {};
+        const driverName = driver.name || request.driverEmail;
+
+        if (!confirm(`⚠️ IMPORTANT: Please inform ${driverName} about canceling this request.\n\nAre you sure you want to cancel this request?`)) return;
 
         this.showLoading();
 
         try {
             await API.requests.delete(requestId);
             await this.loadDashboardData();
-            this.showToast('Request cancelled', 'success');
+            this.showToast('Request cancelled. Please inform the driver.', 'success');
         } catch (error) {
             this.showToast('Error: ' + error.message, 'error');
         }
