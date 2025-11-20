@@ -259,11 +259,18 @@ const App = {
             }
 
             const vehicle = await API.vehicles.get(this.currentUser.email);
+            const requests = await API.requests.getByDriver(this.currentUser.email);
+            const approvedRequests = requests.filter(r => r.status === 'approved' || r.status === 'confirmed');
+            const assignedSeats = approvedRequests.reduce((sum, r) => sum + (parseInt(r.seatsRequested) || 0), 0);
+
             if (vehicle) {
                 document.getElementById('vehicle-type').value = vehicle.vehicleType || '';
                 document.getElementById('total-seats').value = vehicle.totalSeats || 4;
                 document.getElementById('family-members').value = vehicle.familyMembers || 0;
                 document.getElementById('driver-status').value = vehicle.status || 'open';
+
+                // Store assigned seats for validation
+                this.assignedPassengerSeats = assignedSeats;
             }
             this.updateAvailableSeats();
             await this.loadDriverRequests();
@@ -342,7 +349,7 @@ const App = {
 
     // Remove a passenger from the car
     async removePassenger(requestId, passengerName) {
-        if (!confirm(`Remove ${passengerName} from your car? They will need to request again.`)) return;
+        if (!confirm(`⚠️ IMPORTANT: Please contact ${passengerName} first to inform them.\n\nAre you sure you want to remove ${passengerName} from your car? They will need to request again.`)) return;
 
         this.showLoading();
 
@@ -350,7 +357,9 @@ const App = {
             await API.requests.delete(requestId);
             await this.loadDriverPassengers();
             await this.loadDriverRequests();
-            this.showToast('Passenger removed', 'success');
+            // Reload to update assigned seats count
+            await this.loadDriverData();
+            this.showToast('Passenger removed. Please contact them to inform.', 'success');
         } catch (error) {
             this.showToast('Error: ' + error.message, 'error');
         }
@@ -450,8 +459,18 @@ const App = {
     updateAvailableSeats() {
         const totalSeats = parseInt(document.getElementById('total-seats').value) || 0;
         const familyMembers = parseInt(document.getElementById('family-members').value) || 0;
-        const available = Math.max(0, totalSeats - familyMembers);
+        const assignedSeats = this.assignedPassengerSeats || 0;
+        const available = Math.max(0, totalSeats - familyMembers - assignedSeats);
+
         document.getElementById('available-seats').textContent = available;
+
+        // Show warning if seats are assigned to passengers
+        const familyInput = document.getElementById('family-members');
+        if (assignedSeats > 0 && familyMembers + assignedSeats > totalSeats) {
+            familyInput.style.borderColor = 'var(--danger)';
+        } else {
+            familyInput.style.borderColor = '';
+        }
 
         // Auto-update status based on available seats
         const statusSelect = document.getElementById('driver-status');
@@ -470,6 +489,7 @@ const App = {
         const totalSeats = parseInt(document.getElementById('total-seats').value) || 4;
         const familyMembers = parseInt(document.getElementById('family-members').value) || 0;
         const status = document.getElementById('driver-status').value;
+        const assignedSeats = this.assignedPassengerSeats || 0;
 
         // Validation
         if (!name) {
@@ -482,6 +502,15 @@ const App = {
         }
         if (familyMembers > totalSeats) {
             this.showToast('Family members cannot exceed total seats', 'error');
+            return;
+        }
+
+        // Check if adding family members would displace assigned passengers
+        if (assignedSeats > 0 && familyMembers + assignedSeats > totalSeats) {
+            this.showToast(
+                `Cannot add family members. ${assignedSeats} seat(s) already assigned to passengers. Please remove passengers first from the "My Passengers" tab.`,
+                'error'
+            );
             return;
         }
 
@@ -637,14 +666,14 @@ const App = {
 
     // Remove passenger from dashboard view
     async removePassengerFromDashboard(requestId, passengerName) {
-        if (!confirm(`Remove ${passengerName} from your car? They will need to request again.`)) return;
+        if (!confirm(`⚠️ IMPORTANT: Please contact ${passengerName} first to inform them.\n\nAre you sure you want to remove ${passengerName} from your car? They will need to request again.`)) return;
 
         this.showLoading();
 
         try {
             await API.requests.delete(requestId);
             await this.loadDashboardData();
-            this.showToast('Passenger removed', 'success');
+            this.showToast('Passenger removed. Please contact them to inform.', 'success');
         } catch (error) {
             this.showToast('Error: ' + error.message, 'error');
         }
