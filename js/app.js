@@ -452,6 +452,14 @@ const App = {
         const familyMembers = parseInt(document.getElementById('family-members').value) || 0;
         const available = Math.max(0, totalSeats - familyMembers);
         document.getElementById('available-seats').textContent = available;
+
+        // Auto-update status based on available seats
+        const statusSelect = document.getElementById('driver-status');
+        if (available === 0) {
+            statusSelect.value = 'full';
+        } else if (statusSelect.value === 'full' && available > 0) {
+            statusSelect.value = 'open';
+        }
     },
 
     // Save vehicle details
@@ -472,7 +480,7 @@ const App = {
             this.showToast('Please select vehicle type', 'error');
             return;
         }
-        if (familyMembers >= totalSeats) {
+        if (familyMembers > totalSeats) {
             this.showToast('Family members cannot exceed total seats', 'error');
             return;
         }
