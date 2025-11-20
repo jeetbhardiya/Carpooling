@@ -196,12 +196,33 @@ const App = {
 
     // Handle role selection
     async handleRoleSelect(role) {
-        this.currentRole = role;
         this.showLoading();
 
         try {
+            // Check if changing FROM driver role
+            if (this.currentUser.role === 'driver' && role !== 'driver') {
+                const canChange = await this.checkDriverRoleChange();
+                if (!canChange) {
+                    this.hideLoading();
+                    return;
+                }
+
+                // Update vehicle status to not-bringing (hides it from vehicle list)
+                await API.vehicles.update(this.currentUser.email, { status: 'not-bringing' });
+            }
+
+            // Check if changing FROM passenger role with active ride
+            if (this.currentUser.role === 'passenger' && role !== 'passenger') {
+                const canChange = await this.checkPassengerRoleChange();
+                if (!canChange) {
+                    this.hideLoading();
+                    return;
+                }
+            }
+
             await API.users.update(this.currentUser.email, { role });
             this.currentUser.role = role;
+            this.currentRole = role;
 
             if (role === 'driver') {
                 await this.loadDriverData();
@@ -213,11 +234,52 @@ const App = {
                 await this.loadAdminData();
                 this.showScreen('admin-panel');
             }
+
+            this.showToast('Role changed successfully', 'success');
         } catch (error) {
             this.showToast('Error: ' + error.message, 'error');
         }
 
         this.hideLoading();
+    },
+
+    // Check if driver can change role (no active passengers/requests)
+    async checkDriverRoleChange() {
+        const requests = await API.requests.getByDriver(this.currentUser.email);
+        const approvedPassengers = requests.filter(r => r.status === 'approved' || r.status === 'confirmed');
+        const pendingRequests = requests.filter(r => r.status === 'pending');
+
+        if (approvedPassengers.length > 0 || pendingRequests.length > 0) {
+            let message = '⚠️ Cannot change role. You have:\n\n';
+
+            if (approvedPassengers.length > 0) {
+                message += `• ${approvedPassengers.length} approved passenger(s)\n`;
+            }
+            if (pendingRequests.length > 0) {
+                message += `• ${pendingRequests.length} pending request(s)\n`;
+            }
+
+            message += '\nPlease remove all passengers and reject all pending requests first.';
+
+            alert(message);
+            return false;
+        }
+
+        return true;
+    },
+
+    // Check if passenger can change role (no active ride)
+    async checkPassengerRoleChange() {
+        const requests = await API.requests.getByPassenger(this.currentUser.email);
+        const activeRide = requests.find(r => r.status === 'approved' || r.status === 'confirmed' || r.status === 'pending');
+
+        if (activeRide) {
+            const driver = this.allUsers.find(u => u.email === activeRide.driverEmail) || {};
+            alert(`⚠️ Cannot change role. You have an active ${activeRide.status} request with ${driver.name || activeRide.driverEmail}.\n\nPlease cancel or leave the ride first.`);
+            return false;
+        }
+
+        return true;
     },
 
     // Show profile panel based on role
