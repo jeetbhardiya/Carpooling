@@ -620,6 +620,30 @@ const App = {
         this.showLoading();
 
         try {
+            // Check if user is trying to change seatsNeeded and has active requests
+            if (this.currentUser.seatsNeeded && seatsNeeded !== this.currentUser.seatsNeeded) {
+                const requests = await API.requests.getByPassenger(this.currentUser.email);
+                const activeRequests = requests.filter(r =>
+                    r.status === 'pending' || r.status === 'approved' || r.status === 'confirmed'
+                );
+
+                if (activeRequests.length > 0) {
+                    // Load users to show driver names
+                    const users = await API.users.getAll();
+                    const requestDetails = activeRequests.map(r => {
+                        const driver = users.find(u => u.email === r.driverEmail) || {};
+                        return `• ${r.seatsRequested} seat(s) with ${driver.name || r.driverEmail} (${r.status})`;
+                    }).join('\n');
+
+                    this.hideLoading();
+                    alert(`⚠️ Cannot change number of seats needed.\n\nYou have ${activeRequests.length} active request(s):\n\n${requestDetails}\n\nPlease cancel all pending and approved requests first.`);
+
+                    // Reset the input to original value
+                    document.getElementById('seats-needed').value = this.currentUser.seatsNeeded;
+                    return;
+                }
+            }
+
             await API.users.update(this.currentUser.email, { name, phone, seatsNeeded });
             this.currentUser.name = name;
             this.currentUser.phone = phone;
