@@ -290,6 +290,7 @@ const App = {
             this.loadDriverData();
         } else if (this.currentRole === 'passenger') {
             this.showScreen('passenger-panel');
+            this.loadPassengerData();
         } else if (this.currentRole === 'admin') {
             this.showScreen('admin-panel');
         }
