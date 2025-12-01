@@ -829,9 +829,9 @@ const App = {
     renderMyRequests() {
         const container = document.getElementById('requests-list');
         // Show different requests based on role
-        // Drivers see incoming requests, passengers see outgoing requests
+        // Drivers see incoming pending/rejected requests, passengers see all outgoing requests
         const myRequests = this.currentRole === 'driver'
-            ? this.allRequests.filter(r => r.driverEmail === this.currentUser.email)
+            ? this.allRequests.filter(r => r.driverEmail === this.currentUser.email && (r.status === 'pending' || r.status === 'rejected'))
             : this.allRequests.filter(r => r.passengerEmail === this.currentUser.email);
 
         // Update badge (for drivers, show only pending count)
@@ -883,10 +883,9 @@ const App = {
                                 <button class="btn btn-success btn-small" onclick="App.updateRequestStatus('${request.id}', 'approved')">Approve</button>
                             </div>
                         ` : ''}
-                        ${request.status === 'approved' || request.status === 'confirmed' ? `
+                        ${request.status === 'rejected' ? `
                             <div class="request-card-actions">
-                                <button class="btn btn-secondary btn-small" onclick="App.showContactModal('${request.passengerEmail}')">📞 Contact</button>
-                                <button class="btn btn-danger btn-small" onclick="App.removePassengerFromDashboard('${request.id}', '${(passenger.name || request.passengerEmail).replace(/'/g, "\\'")}')">Remove</button>
+                                <button class="btn btn-secondary btn-small" onclick="App.deleteDriverRequest('${request.id}')">Remove</button>
                             </div>
                         ` : ''}
                     </div>
@@ -936,6 +935,21 @@ const App = {
                 `;
             }).join('');
         }
+    },
+
+    // Delete rejected request (driver removes from list)
+    async deleteDriverRequest(requestId) {
+        this.showLoading();
+
+        try {
+            await API.requests.delete(requestId);
+            await this.loadDashboardData();
+            this.showToast('Request removed', 'success');
+        } catch (error) {
+            this.showToast('Error: ' + error.message, 'error');
+        }
+
+        this.hideLoading();
     },
 
     // Leave a ride (passenger cancels approved request)
