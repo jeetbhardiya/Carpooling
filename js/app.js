@@ -108,7 +108,7 @@ const App = {
         // Back buttons
         document.getElementById('back-to-roles-btn').addEventListener('click', () => this.showRoleScreen());
         document.getElementById('driver-back-btn').addEventListener('click', () => this.showDashboard());
-        document.getElementById('passenger-back-btn').addEventListener('click', () => this.showRoleScreen());
+        document.getElementById('passenger-back-btn').addEventListener('click', () => this.showDashboard());
         document.getElementById('admin-back-btn').addEventListener('click', () => this.showRoleScreen());
         document.getElementById('profile-btn').addEventListener('click', () => this.showProfilePanel());
         document.getElementById('refresh-btn').addEventListener('click', () => this.refreshDashboard());
