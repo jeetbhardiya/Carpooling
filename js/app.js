@@ -340,8 +340,6 @@ const App = {
                 this.assignedPassengerSeats = 0;
             }
             this.updateAvailableSeats();
-            await this.loadDriverRequests();
-            await this.loadDriverPassengers();
         } catch (error) {
             console.error('Error loading driver data:', error);
         }
