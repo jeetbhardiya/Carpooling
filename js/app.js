@@ -509,7 +509,9 @@ const App = {
 
         try {
             await API.requests.update(requestId, { status });
+            // Reload both driver requests and dashboard data
             await this.loadDriverRequests();
+            await this.loadDashboardData();
             this.showToast('Request ' + status, 'success');
         } catch (error) {
             this.showToast('Error: ' + error.message, 'error');
@@ -826,69 +828,114 @@ const App = {
     // Render my requests
     renderMyRequests() {
         const container = document.getElementById('requests-list');
-        const myRequests = this.allRequests.filter(r => r.passengerEmail === this.currentUser.email);
+        // Show different requests based on role
+        // Drivers see incoming requests, passengers see outgoing requests
+        const myRequests = this.currentRole === 'driver'
+            ? this.allRequests.filter(r => r.driverEmail === this.currentUser.email)
+            : this.allRequests.filter(r => r.passengerEmail === this.currentUser.email);
 
-        // Update badge
+        // Update badge (for drivers, show only pending count)
         const badge = document.getElementById('requests-badge');
-        if (myRequests.length > 0) {
-            badge.textContent = myRequests.length;
+        const badgeCount = this.currentRole === 'driver'
+            ? myRequests.filter(r => r.status === 'pending').length
+            : myRequests.length;
+
+        if (badgeCount > 0) {
+            badge.textContent = badgeCount;
             badge.classList.remove('hidden');
         } else {
             badge.classList.add('hidden');
         }
 
         if (!myRequests || myRequests.length === 0) {
+            const emptyMessage = this.currentRole === 'driver'
+                ? '<p>Seat requests from passengers will appear here</p>'
+                : '<p>Request a seat from any available vehicle</p>';
             container.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">📋</div>
                     <h3>No requests yet</h3>
-                    <p>Request a seat from any available vehicle</p>
+                    ${emptyMessage}
                 </div>
             `;
             return;
         }
 
-        container.innerHTML = myRequests.map(request => {
-            const driver = this.allUsers.find(u => u.email === request.driverEmail) || {};
-            const vehicle = this.allVehicles.find(v => v.driverEmail === request.driverEmail) || {};
-            return `
-                <div class="request-card">
-                    <div class="request-card-header">
-                        <h4>${driver.name || request.driverEmail}</h4>
-                        <span class="request-status status-${request.status}">${request.status}</span>
+        // Render differently for drivers vs passengers
+        if (this.currentRole === 'driver') {
+            // Driver view: show incoming requests from passengers
+            container.innerHTML = myRequests.map(request => {
+                const passenger = this.allUsers.find(u => u.email === request.passengerEmail) || {};
+                return `
+                    <div class="request-card">
+                        <div class="request-card-header">
+                            <h4>${passenger.name || request.passengerEmail}</h4>
+                            <span class="request-status status-${request.status}">${request.status}</span>
+                        </div>
+                        <div class="request-card-details">
+                            <p>🎫 Seats requested: <strong>${request.seatsRequested}</strong></p>
+                            <p>✉️ ${request.passengerEmail}</p>
+                            ${passenger.phone ? `<p>📞 ${passenger.phone}</p>` : ''}
+                        </div>
+                        ${request.status === 'pending' ? `
+                            <div class="request-card-actions">
+                                <button class="btn btn-danger btn-small" onclick="App.updateRequestStatus('${request.id}', 'rejected')">Decline</button>
+                                <button class="btn btn-success btn-small" onclick="App.updateRequestStatus('${request.id}', 'approved')">Approve</button>
+                            </div>
+                        ` : ''}
+                        ${request.status === 'approved' || request.status === 'confirmed' ? `
+                            <div class="request-card-actions">
+                                <button class="btn btn-secondary btn-small" onclick="App.showContactModal('${request.passengerEmail}')">📞 Contact</button>
+                                <button class="btn btn-danger btn-small" onclick="App.removePassengerFromDashboard('${request.id}', '${(passenger.name || request.passengerEmail).replace(/'/g, "\\'")}')">Remove</button>
+                            </div>
+                        ` : ''}
                     </div>
-                    <div class="request-card-details">
-                        <p>🎫 Seats requested: <strong>${request.seatsRequested}</strong></p>
-                        ${vehicle.vehicleType ? `<p>🚗 Vehicle: <strong>${vehicle.vehicleType}</strong></p>` : ''}
-                        ${request.status === 'approved' ? `<p>✅ You're confirmed for this ride!</p>` : ''}
+                `;
+            }).join('');
+        } else {
+            // Passenger view: show outgoing requests to drivers
+            container.innerHTML = myRequests.map(request => {
+                const driver = this.allUsers.find(u => u.email === request.driverEmail) || {};
+                const vehicle = this.allVehicles.find(v => v.driverEmail === request.driverEmail) || {};
+                return `
+                    <div class="request-card">
+                        <div class="request-card-header">
+                            <h4>${driver.name || request.driverEmail}</h4>
+                            <span class="request-status status-${request.status}">${request.status}</span>
+                        </div>
+                        <div class="request-card-details">
+                            <p>🎫 Seats requested: <strong>${request.seatsRequested}</strong></p>
+                            ${vehicle.vehicleType ? `<p>🚗 Vehicle: <strong>${vehicle.vehicleType}</strong></p>` : ''}
+                            ${request.status === 'approved' ? `<p>✅ You're confirmed for this ride!</p>` : ''}
+                        </div>
+                        ${request.status === 'pending' ? `
+                            <div class="request-card-actions">
+                                <button class="btn btn-danger btn-small" onclick="App.cancelRequest('${request.id}')">
+                                    Cancel Request
+                                </button>
+                            </div>
+                        ` : ''}
+                        ${request.status === 'approved' || request.status === 'confirmed' ? `
+                            <div class="request-card-actions">
+                                <button class="btn btn-secondary btn-small" onclick="App.showContactModal('${request.driverEmail}')">
+                                    📞 Contact Driver
+                                </button>
+                                <button class="btn btn-danger btn-small" onclick="App.leaveRide('${request.id}', '${(driver.name || request.driverEmail).replace(/'/g, "\\'")}')">
+                                    Leave Ride
+                                </button>
+                            </div>
+                        ` : ''}
+                        ${request.status === 'rejected' ? `
+                            <div class="request-card-actions">
+                                <button class="btn btn-secondary btn-small" onclick="App.cancelRequest('${request.id}')">
+                                    Remove
+                                </button>
+                            </div>
+                        ` : ''}
                     </div>
-                    ${request.status === 'pending' ? `
-                        <div class="request-card-actions">
-                            <button class="btn btn-danger btn-small" onclick="App.cancelRequest('${request.id}')">
-                                Cancel Request
-                            </button>
-                        </div>
-                    ` : ''}
-                    ${request.status === 'approved' || request.status === 'confirmed' ? `
-                        <div class="request-card-actions">
-                            <button class="btn btn-secondary btn-small" onclick="App.showContactModal('${request.driverEmail}')">
-                                📞 Contact Driver
-                            </button>
-                            <button class="btn btn-danger btn-small" onclick="App.leaveRide('${request.id}', '${(driver.name || request.driverEmail).replace(/'/g, "\\'")}')">
-                                Leave Ride
-                            </button>
-                        </div>
-                    ` : ''}
-                    ${request.status === 'rejected' ? `
-                        <div class="request-card-actions">
-                            <button class="btn btn-secondary btn-small" onclick="App.cancelRequest('${request.id}')">
-                                Remove
-                            </button>
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-        }).join('');
+                `;
+            }).join('');
+        }
     },
 
     // Leave a ride (passenger cancels approved request)
