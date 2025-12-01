@@ -314,12 +314,9 @@ const App = {
             document.getElementById('driver-email').textContent = this.currentUser.email;
             document.getElementById('driver-name').textContent = this.currentUser.name || 'Driver';
 
-            if (this.currentUser.name) {
-                document.getElementById('driver-name-input').value = this.currentUser.name;
-            }
-            if (this.currentUser.phone) {
-                document.getElementById('driver-phone').value = this.currentUser.phone;
-            }
+            // Always prepopulate name and phone if available
+            document.getElementById('driver-name-input').value = this.currentUser.name || '';
+            document.getElementById('driver-phone').value = this.currentUser.phone || '';
 
             const vehicle = await API.vehicles.get(this.currentUser.email);
             const requests = await API.requests.getByDriver(this.currentUser.email);
@@ -334,6 +331,13 @@ const App = {
 
                 // Store assigned seats for validation
                 this.assignedPassengerSeats = assignedSeats;
+            } else {
+                // Set defaults for new drivers
+                document.getElementById('vehicle-type').value = '';
+                document.getElementById('total-seats').value = 4;
+                document.getElementById('family-members').value = 0;
+                document.getElementById('driver-status').value = 'open';
+                this.assignedPassengerSeats = 0;
             }
             this.updateAvailableSeats();
             await this.loadDriverRequests();
@@ -435,15 +439,10 @@ const App = {
         document.getElementById('passenger-email').textContent = this.currentUser.email;
         document.getElementById('passenger-name').textContent = this.currentUser.name || 'Passenger';
 
-        if (this.currentUser.name) {
-            document.getElementById('passenger-name-input').value = this.currentUser.name;
-        }
-        if (this.currentUser.phone) {
-            document.getElementById('passenger-phone').value = this.currentUser.phone;
-        }
-        if (this.currentUser.seatsNeeded) {
-            document.getElementById('seats-needed').value = this.currentUser.seatsNeeded;
-        }
+        // Always prepopulate all fields with saved data or defaults
+        document.getElementById('passenger-name-input').value = this.currentUser.name || '';
+        document.getElementById('passenger-phone').value = this.currentUser.phone || '';
+        document.getElementById('seats-needed').value = this.currentUser.seatsNeeded || 1;
     },
 
     // Load driver requests
