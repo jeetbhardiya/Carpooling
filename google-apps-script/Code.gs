@@ -21,7 +21,7 @@ function initializeSheets(ss) {
   let usersSheet = ss.getSheetByName(USERS_SHEET);
   if (!usersSheet) {
     usersSheet = ss.insertSheet(USERS_SHEET);
-    usersSheet.appendRow(['email', 'name', 'phone', 'role', 'isAdmin', 'createdAt', 'updatedAt']);
+    usersSheet.appendRow(['email', 'name', 'phone', 'role', 'isAdmin', 'seatsNeeded', 'createdAt', 'updatedAt']);
   }
 
   // Vehicles sheet
@@ -141,8 +141,9 @@ function getUser(email) {
         phone: data[i][2],
         role: data[i][3],
         isAdmin: data[i][4] === true || data[i][4] === 'TRUE',
-        createdAt: data[i][5],
-        updatedAt: data[i][6]
+        seatsNeeded: data[i][5] || 1,
+        createdAt: data[i][6],
+        updatedAt: data[i][7]
       };
     }
   }
@@ -165,6 +166,7 @@ function createUser(userData) {
     userData.phone || '',
     userData.role || '',
     userData.isAdmin || false,
+    userData.seatsNeeded || 1,
     now,
     now
   ]);
@@ -183,7 +185,8 @@ function updateUser(email, userData) {
       if (userData.phone !== undefined) sheet.getRange(row, 3).setValue(userData.phone);
       if (userData.role !== undefined) sheet.getRange(row, 4).setValue(userData.role);
       if (userData.isAdmin !== undefined) sheet.getRange(row, 5).setValue(userData.isAdmin);
-      sheet.getRange(row, 7).setValue(new Date().toISOString());
+      if (userData.seatsNeeded !== undefined) sheet.getRange(row, 6).setValue(userData.seatsNeeded);
+      sheet.getRange(row, 8).setValue(new Date().toISOString());
 
       return { success: true };
     }
@@ -223,8 +226,9 @@ function getAllUsers() {
       phone: data[i][2],
       role: data[i][3],
       isAdmin: data[i][4] === true || data[i][4] === 'TRUE',
-      createdAt: data[i][5],
-      updatedAt: data[i][6]
+      seatsNeeded: data[i][5] || 1,
+      createdAt: data[i][6],
+      updatedAt: data[i][7]
     });
   }
 

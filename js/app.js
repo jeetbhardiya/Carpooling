@@ -441,6 +441,9 @@ const App = {
         if (this.currentUser.phone) {
             document.getElementById('passenger-phone').value = this.currentUser.phone;
         }
+        if (this.currentUser.seatsNeeded) {
+            document.getElementById('seats-needed').value = this.currentUser.seatsNeeded;
+        }
     },
 
     // Load driver requests
@@ -619,10 +622,10 @@ const App = {
         this.showLoading();
 
         try {
-            await API.users.update(this.currentUser.email, { name, phone });
+            await API.users.update(this.currentUser.email, { name, phone, seatsNeeded });
             this.currentUser.name = name;
             this.currentUser.phone = phone;
-            this.seatsNeeded = seatsNeeded;
+            this.currentUser.seatsNeeded = seatsNeeded;
 
             this.showToast('Profile saved!', 'success');
             await this.showDashboard();
@@ -777,7 +780,32 @@ const App = {
                 r => r.passengerEmail === this.currentUser.email && r.driverEmail === vehicle.driverEmail
             );
 
+            // Calculate remaining seats needed for passenger
+            const remainingSeatsNeeded = this.currentRole === 'passenger' ? this.getRemainingSeatsNeeded() : 0;
+            const allSeatsBooked = remainingSeatsNeeded === 0 && this.currentRole === 'passenger';
+
             const initials = (driver.name || driver.email || 'D').substring(0, 2).toUpperCase();
+
+            // Determine button state and text
+            let buttonDisabled = false;
+            let buttonText = '🎫 Request';
+
+            if (existingRequest) {
+                if (existingRequest.status === 'approved' || existingRequest.status === 'confirmed') {
+                    buttonText = '✓ Approved';
+                    buttonDisabled = true;
+                } else if (existingRequest.status === 'pending') {
+                    buttonText = '⏳ Pending';
+                    buttonDisabled = true;
+                } else if (existingRequest.status === 'rejected') {
+                    buttonDisabled = false; // Can request again after rejection
+                }
+            } else if (allSeatsBooked) {
+                buttonText = '✓ All Booked';
+                buttonDisabled = true;
+            } else if (availableSeats === 0 || vehicle.status === 'full') {
+                buttonDisabled = true;
+            }
 
             return `
                 <div class="vehicle-card">
@@ -813,9 +841,9 @@ const App = {
                         </button>
                         ${!isOwnVehicle && this.currentRole === 'passenger' ? `
                             <button class="btn btn-primary btn-small"
-                                ${existingRequest || availableSeats === 0 || vehicle.status === 'full' ? 'disabled' : ''}
+                                ${buttonDisabled ? 'disabled' : ''}
                                 onclick="App.showRequestModal('${vehicle.driverEmail}', '${(driver.name || vehicle.driverEmail).replace(/'/g, "\\'")}', ${availableSeats})">
-                                ${existingRequest ? (existingRequest.status === 'approved' ? '✓ Approved' : existingRequest.status === 'pending' ? '⏳ Pending' : 'Requested') : '🎫 Request'}
+                                ${buttonText}
                             </button>
                         ` : ''}
                         ${isOwnVehicle ? '<span class="btn btn-ghost btn-small">Your vehicle</span>' : ''}
@@ -989,13 +1017,45 @@ const App = {
         this.showModal('contact-modal');
     },
 
+    // Calculate remaining seats needed for passenger
+    getRemainingSeatsNeeded() {
+        const totalNeeded = this.currentUser.seatsNeeded || 1;
+        const myRequests = this.allRequests.filter(r =>
+            r.passengerEmail === this.currentUser.email &&
+            (r.status === 'pending' || r.status === 'approved' || r.status === 'confirmed')
+        );
+        const bookedSeats = myRequests.reduce((sum, r) => sum + (parseInt(r.seatsRequested) || 0), 0);
+        return Math.max(0, totalNeeded - bookedSeats);
+    },
+
     // Show request modal
     showRequestModal(driverEmail, driverName, availableSeats) {
+        const remainingSeats = this.getRemainingSeatsNeeded();
+
+        if (remainingSeats === 0) {
+            this.showToast('You have already requested all your seats', 'error');
+            return;
+        }
+
         document.getElementById('modal-driver-name').textContent = driverName;
         document.getElementById('modal-available-seats').textContent = availableSeats;
-        document.getElementById('request-seats').max = availableSeats;
-        document.getElementById('request-seats').value = Math.min(this.seatsNeeded, availableSeats);
+
+        const maxSeats = Math.min(remainingSeats, availableSeats);
+        document.getElementById('request-seats').max = maxSeats;
+        document.getElementById('request-seats').value = maxSeats;
         document.getElementById('request-modal').dataset.driverEmail = driverEmail;
+
+        // Add info about remaining seats
+        const modalContent = document.querySelector('#request-modal .modal-content');
+        let infoText = modalContent.querySelector('.remaining-seats-info');
+        if (!infoText) {
+            infoText = document.createElement('p');
+            infoText.className = 'remaining-seats-info form-hint';
+            infoText.style.marginTop = '0.5rem';
+            modalContent.insertBefore(infoText, modalContent.querySelector('.modal-actions'));
+        }
+        infoText.textContent = `You need ${remainingSeats} more seat(s) out of ${this.currentUser.seatsNeeded || 1} total`;
+
         this.showModal('request-modal');
     },
 
