@@ -109,9 +109,10 @@ const App = {
         document.getElementById('back-to-roles-btn').addEventListener('click', () => this.showRoleScreen());
         document.getElementById('driver-back-btn').addEventListener('click', () => this.showDashboard());
         document.getElementById('passenger-back-btn').addEventListener('click', () => this.showDashboard());
-        document.getElementById('admin-back-btn').addEventListener('click', () => this.showRoleScreen());
+        document.getElementById('admin-back-btn').addEventListener('click', () => this.showDashboard());
         document.getElementById('profile-btn').addEventListener('click', () => this.showProfilePanel());
         document.getElementById('refresh-btn').addEventListener('click', () => this.refreshDashboard());
+        document.getElementById('admin-access-btn').addEventListener('click', () => this.goToAdminPanel());
 
         // Tabs
         document.querySelectorAll('.tab').forEach(tab => {
@@ -284,16 +285,34 @@ const App = {
     },
 
     // Show profile panel based on role
-    showProfilePanel() {
-        if (this.currentRole === 'driver') {
-            this.showScreen('driver-panel');
-            this.loadDriverData();
-        } else if (this.currentRole === 'passenger') {
-            this.showScreen('passenger-panel');
-            this.loadPassengerData();
-        } else if (this.currentRole === 'admin') {
-            this.showScreen('admin-panel');
+    async showProfilePanel() {
+        this.showLoading();
+        try {
+            if (this.currentRole === 'driver') {
+                await this.loadDriverData();
+                this.showScreen('driver-panel');
+            } else if (this.currentRole === 'passenger') {
+                await this.loadPassengerData();
+                this.showScreen('passenger-panel');
+            } else if (this.currentRole === 'admin') {
+                this.showScreen('admin-panel');
+            }
+        } catch (error) {
+            this.showToast('Error loading profile', 'error');
         }
+        this.hideLoading();
+    },
+
+    // Go to admin panel (accessible from dashboard if user is admin)
+    async goToAdminPanel() {
+        this.showLoading();
+        try {
+            await this.loadAdminData();
+            this.showScreen('admin-panel');
+        } catch (error) {
+            this.showToast('Error loading admin panel', 'error');
+        }
+        this.hideLoading();
     },
 
     // Refresh dashboard
@@ -322,6 +341,7 @@ const App = {
             const vehicle = await API.vehicles.get(this.currentUser.email);
             const requests = await API.requests.getByDriver(this.currentUser.email);
             const approvedRequests = requests.filter(r => r.status === 'approved' || r.status === 'confirmed');
+            const pendingRequests = requests.filter(r => r.status === 'pending');
             const assignedSeats = approvedRequests.reduce((sum, r) => sum + (parseInt(r.seatsRequested) || 0), 0);
 
             if (vehicle) {
@@ -330,8 +350,9 @@ const App = {
                 document.getElementById('family-members').value = vehicle.familyMembers || 0;
                 document.getElementById('driver-status').value = vehicle.status || 'open';
 
-                // Store assigned seats for validation
+                // Store assigned seats and pending requests for validation
                 this.assignedPassengerSeats = assignedSeats;
+                this.pendingRequests = pendingRequests;
             } else {
                 // Set defaults for new drivers
                 document.getElementById('vehicle-type').value = '';
@@ -339,6 +360,7 @@ const App = {
                 document.getElementById('family-members').value = 0;
                 document.getElementById('driver-status').value = 'open';
                 this.assignedPassengerSeats = 0;
+                this.pendingRequests = [];
             }
             this.updateAvailableSeats();
         } catch (error) {
@@ -556,6 +578,7 @@ const App = {
         const familyMembers = parseInt(document.getElementById('family-members').value) || 0;
         const status = document.getElementById('driver-status').value;
         const assignedSeats = this.assignedPassengerSeats || 0;
+        const pendingRequests = this.pendingRequests || [];
 
         // Validation
         if (!name) {
@@ -571,18 +594,57 @@ const App = {
             return;
         }
 
-        // Check if adding family members would displace assigned passengers
-        if (assignedSeats > 0 && familyMembers + assignedSeats > totalSeats) {
-            this.showToast(
-                `Cannot add family members. ${assignedSeats} seat(s) already assigned to passengers. Please remove passengers first from the "My Passengers" tab.`,
-                'error'
-            );
-            return;
-        }
-
         this.showLoading();
 
         try {
+            // Get current vehicle settings to compare changes
+            const currentVehicle = await API.vehicles.get(this.currentUser.email);
+            const currentTotalSeats = currentVehicle ? currentVehicle.totalSeats : 0;
+            const currentFamilyMembers = currentVehicle ? currentVehicle.familyMembers : 0;
+
+            // Check if there are pending requests when trying to reduce capacity
+            if (pendingRequests.length > 0) {
+                // Check if decreasing total seats
+                if (totalSeats < currentTotalSeats) {
+                    this.hideLoading();
+                    this.showToast(
+                        `Cannot reduce total seats. You have ${pendingRequests.length} pending request(s). Please reject all pending requests first from the "My Requests" tab.`,
+                        'error'
+                    );
+                    return;
+                }
+
+                // Check if increasing family members
+                if (familyMembers > currentFamilyMembers) {
+                    this.hideLoading();
+                    this.showToast(
+                        `Cannot add family members. You have ${pendingRequests.length} pending request(s). Please reject all pending requests first from the "My Requests" tab.`,
+                        'error'
+                    );
+                    return;
+                }
+            }
+
+            // Check if decreasing total seats would displace assigned passengers
+            if (assignedSeats > 0 && totalSeats < familyMembers + assignedSeats) {
+                this.hideLoading();
+                this.showToast(
+                    `Cannot reduce total seats. ${assignedSeats} seat(s) already assigned to passengers and ${familyMembers} family member(s). Please remove passengers first from the "My Passengers" tab.`,
+                    'error'
+                );
+                return;
+            }
+
+            // Check if adding family members would displace assigned passengers
+            if (assignedSeats > 0 && familyMembers + assignedSeats > totalSeats) {
+                this.hideLoading();
+                this.showToast(
+                    `Cannot add family members. ${assignedSeats} seat(s) already assigned to passengers. Please remove passengers first from the "My Passengers" tab.`,
+                    'error'
+                );
+                return;
+            }
+
             // Update user profile
             await API.users.update(this.currentUser.email, { name, phone });
             this.currentUser.name = name;
@@ -665,6 +727,15 @@ const App = {
 
         try {
             await this.loadDashboardData();
+
+            // Show/hide admin button based on user's admin status
+            const adminBtn = document.getElementById('admin-access-btn');
+            if (this.currentUser && this.currentUser.isAdmin) {
+                adminBtn.classList.remove('hidden');
+            } else {
+                adminBtn.classList.add('hidden');
+            }
+
             this.showScreen('dashboard-screen');
         } catch (error) {
             this.showToast('Error loading dashboard', 'error');
